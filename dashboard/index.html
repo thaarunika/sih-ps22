@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Agarbathi Dryer Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f6f8;
+            color: #222;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .connection-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+
+        .connection-box h2 {
+            margin-bottom: 15px;
+        }
+
+        input {
+            width: 70%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            margin-left: 5px;
+        }
+
+        .connect-btn {
+            background: #2563eb;
+            color: white;
+        }
+
+        .connect-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .status {
+            margin-top: 12px;
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .card h3 {
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .control-button {
+            background: #111827;
+            color: white;
+            width: 100%;
+        }
+
+        .control-button:hover {
+            background: #374151;
+        }
+
+        .on {
+            color: green;
+        }
+
+        .off {
+            color: red;
+        }
+
+        .warning {
+            color: orange;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #777;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+
+            input {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .connect-btn {
+                width: 100%;
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🌿 Agarbathi Dryer Dashboard</h1>
+
+    <p class="subtitle">
+        ESP32-Based Smart Drying and Monitoring System
+    </p>
+
+    <!-- CONNECTION -->
+    <div class="connection-box">
+
+        <h2>ESP32 Connection</h2>
+
+        <input
+            type="text"
+            id="esp32IP"
+            placeholder="Enter ESP32 IP address"
+            value="192.168.1.100"
+        >
+
+        <button class="connect-btn" onclick="connectESP32()">
+            Connect
+        </button>
+
+        <div class="status" id="connectionStatus">
+            🔴 Disconnected
+        </div>
+
+    </div>
+
+
+    <!-- SENSOR AND CONTROL CARDS -->
+    <div class="grid">
+
+        <!-- TEMPERATURE -->
+        <div class="card">
+            <h3>🌡 Temperature</h3>
+
+            <div class="value" id="temperature">
+                -- °C
+            </div>
+
+            <p>Temperature Limit: <span id="temperatureLimit">--</span> °C</p>
+        </div>
+
+
+        <!-- HUMIDITY -->
+        <div class="card">
+            <h3>💧 Humidity</h3>
+
+            <div class="value" id="humidity">
+                -- %
+            </div>
+        </div>
+
+
+        <!-- FAN -->
+        <div class="card">
+
+            <h3>🌀 Fan</h3>
+
+            <div class="value" id="fanState">
+                OFF
+            </div>
+
+            <button
+                class="control-button"
+                onclick="toggleDevice('fan')"
+            >
+                Toggle Fan
+            </button>
+
+        </div>
+
+
+        <!-- AUX RELAY -->
+        <div class="card">
+
+            <h3>⚡ Auxiliary Relay</h3>
+
+            <div class="value" id="auxState">
+                OFF
+            </div>
+
+            <button
+                class="control-button"
+                onclick="toggleDevice('aux')"
+            >
+                Toggle Auxiliary
+            </button>
+
+        </div>
+
+
+        <!-- BUZZER -->
+        <div class="card">
+
+            <h3>🔔 Buzzer</h3>
+
+            <div class="value" id="buzzerState">
+                OFF
+            </div>
+
+            <p>Automatic temperature protection</p>
+
+        </div>
+
+
+        <!-- WIFI RSSI -->
+        <div class="card">
+
+            <h3>📶 WiFi Signal</h3>
+
+            <div class="value" id="wifiRSSI">
+                -- dBm
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="footer">
+
+        ESP32 Smart Agarbathi Dryer
+        <br>
+        Real-Time Monitoring & Control
+
+    </div>
+
+</div>
+
+
+<script>
+
+    let websocket = null;
+
+
+    // CONNECT TO ESP32
+    function connectESP32() {
+
+        const ip = document.getElementById("esp32IP").value.trim();
+
+        if (ip === "") {
+
+            alert("Please enter the ESP32 IP address.");
+
+            return;
+        }
+
+
+        // Close previous connection
+        if (websocket !== null) {
+
+            websocket.close();
+
+        }
+
+
+        const websocketURL = "ws://" + ip + ":81";
+
+        updateStatus("🟡 Connecting...", "orange");
+
+
+        websocket = new WebSocket(websocketURL);
+
+
+        // CONNECTION SUCCESS
+        websocket.onopen = function() {
+
+            updateStatus("🟢 Connected to ESP32", "green");
+
+            console.log("Connected to ESP32");
+
+        };
+
+
+        // RECEIVE DATA
+        websocket.onmessage = function(event) {
+
+            console.log("ESP32 Data:", event.data);
+
+            try {
+
+                const data = JSON.parse(event.data);
+
+                updateDashboard(data);
+
+            }
+
+            catch(error) {
+
+                console.error("Invalid data received:", error);
+
+            }
+
+        };
+
+
+        // CONNECTION CLOSED
+        websocket.onclose = function() {
+
+            updateStatus("🔴 Disconnected", "red");
+
+            console.log("ESP32 connection closed");
+
+        };
+
+
+        // CONNECTION ERROR
+        websocket.onerror = function(error) {
+
+            updateStatus("🔴 Connection Error", "red");
+
+            console.error("WebSocket error:", error);
+
+        };
+
+    }
+
+
+    // UPDATE DASHBOARD
+    function updateDashboard(data) {
+
+        document.getElementById("temperature").innerText =
+            Number(data.temp).toFixed(1) + " °C";
+
+
+        document.getElementById("humidity").innerText =
+            Number(data.hum).toFixed(1) + " %";
+
+
+        document.getElementById("temperatureLimit").innerText =
+            Number(data.limit).toFixed(1);
+
+
+        document.getElementById("fanState").innerText =
+            data.fan ? "ON" : "OFF";
+
+
+        document.getElementById("auxState").innerText =
+            data.aux ? "ON" : "OFF";
+
+
+        document.getElementById("buzzerState").innerText =
+            data.buzzer ? "ON" : "OFF";
+
+
+        document.getElementById("wifiRSSI").innerText =
+            data.rssi + " dBm";
+
+
+        // FAN COLOR
+        document.getElementById("fanState").className =
+            data.fan ? "value on" : "value off";
+
+
+        // AUX COLOR
+        document.getElementById("auxState").className =
+            data.aux ? "value on" : "value off";
+
+
+        // BUZZER COLOR
+        document.getElementById("buzzerState").className =
+            data.buzzer ? "value warning" : "value off";
+
+    }
+
+
+    // SEND COMMAND TO ESP32
+    function toggleDevice(device) {
+
+        if (
+            websocket === null ||
+            websocket.readyState !== WebSocket.OPEN
+        ) {
+
+            alert("Please connect to the ESP32 first.");
+
+            return;
+        }
+
+
+        const command = {
+
+            toggle: device
+
+        };
+
+
+        websocket.send(JSON.stringify(command));
+
+        console.log("Command sent:", command);
+
+    }
+
+
+    // UPDATE CONNECTION STATUS
+    function updateStatus(message, color) {
+
+        const status =
+            document.getElementById("connectionStatus");
+
+        status.innerText = message;
+
+        status.style.color = color;
+
+    }
+
+</script>
+
+</body>
+</html>
